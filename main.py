@@ -1,13 +1,3 @@
-from configparser import ConfigParser
-from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from datetime import datetime
-from email import encoders
-from email.mime.base import MIMEBase
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-import PySimpleGUI as sg
 import base64
 import codecs
 import datetime as dt
@@ -17,20 +7,41 @@ import re
 import smtplib
 import sys
 import time
-import xlsxwriter
+from configparser import ConfigParser
+from datetime import datetime
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
-version = 'v0.23.12.1'
-ini_file = 'logs2xlsx.config'
+import PySimpleGUI as sg
+import xlsxwriter
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+
+VERSION = 'v0.23.12.1'
+INI_FILE = 'logs2xlsx.config'
 args = {'sendmail': '--sendmail', 'debug': '--debug'}
 
 # TRIAL usage
 trial, exp_date = False, dt.date(2021, 7, 10)
-trial_expired = True if trial is True and dt.date.today() >= exp_date else False
+TRIAL_EXPIRED = True if trial is True and dt.date.today() >= exp_date else False
 
-config_defaults = {'schedule_logs_path': '', 'schedule_log_start': '06:00', 'schedule_log_end': '06:01',
-                   'host': 'smtp.gmail.com', 'port': '587', 'mail': '', 'pass': '',
-                   'recipients': 'List of emails separated by commas and without spaces', 'subject_title': 'LOGs from PyLogParser',
-                   'body': 'New log file in attachment', 'schedule_log_name': 'log.txt'}
+config_defaults = {
+    'schedule_logs_path': '',
+    'schedule_log_start': '06:00',
+    'schedule_log_end': '06:01',
+    'host': 'smtp.gmail.com',
+    'port': '587',
+    'mail': '',
+    'pass': '',
+    'recipients': 'List of emails separated by commas and without spaces',
+    'subject_title': 'LOGs from PyLogParser',
+    'body': 'New log file in attachment',
+    'schedule_log_name': 'log.txt',
+}
 
 sendmail, debug = False, False
 if len(sys.argv) > 1:
@@ -54,25 +65,25 @@ debug_log(f'debug: {debug}')
 
 def config_get(section):
     config = ConfigParser()
-    config.read(ini_file)
+    config.read(INI_FILE)
     return config[section]
 
 
 def password_crypt(mode, password):
     kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=os.urandom(0), iterations=1)
-    key = base64.urlsafe_b64encode(kdf.derive(b"J$?{Mf[xKzK`*JV,&_(#~{)x7jMQ>Y"))
-    f = Fernet(key)
-    token = f.encrypt(password)
+    key = base64.urlsafe_b64encode(kdf.derive(b'J$?{Mf[xKzK`*JV,&_(#~{)x7jMQ>Y'))
+    fernet_key = Fernet(key)
+    token = fernet_key.encrypt(password)
     if mode == 'encrypt':
         return token
     else:
-        return f.decrypt(password)
+        return fernet_key.decrypt(password)
 
 
 def config_set(settings):
     config = ConfigParser()
     if settings.get('pass') == '********':
-        config.read(ini_file)
+        config.read(INI_FILE)
         email_pass = config['SMTP']['pass']
     elif settings.get('pass') == '':
         email_pass = ''
@@ -97,11 +108,11 @@ def config_set(settings):
         'log_name': settings.get('schedule_log_name')
     }
 
-    with open(ini_file, 'w') as conf:
+    with open(INI_FILE, 'w', encoding='utf-8') as conf:
         config.write(conf)
 
 
-if not os.path.exists(ini_file):
+if not os.path.exists(INI_FILE):
     config_set(config_defaults)
 
 
@@ -174,7 +185,7 @@ def main(settings):
             if ad_ending and (string in line or ad_ending in line):
                 result.append(line_num)
             elif string in line:
-                result = (line.split())
+                result = line.split()
 
         if len(result) > 0:
             return result
@@ -204,7 +215,7 @@ def main(settings):
             return
 
     def add_row_to_xlsx(row_content, row_number):
-        ws.write_row(row_number, 0, row_content)
+        wsheet.write_row(row_number, 0, row_content)
 
     # start
     start_time = time.time()
@@ -219,7 +230,7 @@ def main(settings):
     files_pattern = r'|'.join([fnmatch.translate(x) for x in files_pattern])
 
     logs_list = []
-    for dirpath, dirs, files in os.walk(logs_path):
+    for _, _, files in os.walk(logs_path):
         files = [f for f in files if re.match(files_pattern, f)]
 
         for file_name in sorted(files):
@@ -237,12 +248,12 @@ def main(settings):
     full_log = codecs.open(file_log, 'r', 'utf_8_sig')
     linelist = full_log.readlines()
 
-    with open(file_xlsx, 'a+'):
+    with open(file_xlsx, 'a+', encoding='utf-8'):
         now = datetime.now()
         print(now.strftime('%H:%M:%S') + ' - START')
 
-    wb = xlsxwriter.Workbook(file_xlsx)
-    ws = wb.add_worksheet(worksheet_name)
+    wbook = xlsxwriter.Workbook(file_xlsx)
+    wsheet = wbook.add_worksheet(worksheet_name)
 
     # finding and grouping line numbers to pairs(advertising start to end)
     ad_lines_list = search_string(linelist, ad_start, ad_end)
@@ -264,10 +275,10 @@ def main(settings):
         print(f'Количество рекламных блоков: {ad_lines_list_len / 2}')
         return
 
-    ws.write_row(0, 0, worksheet_header)
+    wsheet.write_row(0, 0, worksheet_header)
     xlsx_row = 1
-    # ad strings processing
-    for i in range(0, len(ad_start_end_pairs)):
+    # advertisement strings processing
+    for i in enumerate(ad_start_end_pairs):
         ad_start_line = ad_start_end_pairs[i][0] + 1
         ad_end_line = ad_start_end_pairs[i][1] - 1
         skip_num = False
@@ -276,14 +287,24 @@ def main(settings):
                 skip_num = False
                 continue
             line_data = [linelist[num]]
-            ad = search_string(line_data, string_clip_start)
-            if ad is not None:
-                ad_end = (search_string([linelist[num + 1]], string_clip_end))
-                if ad_end is not None and ad[6] == ad_end[6]:
-                    ad_tuple = (ad[0], ad[1], ad[5], ad_end[1])
+            advertisement = search_string(line_data, string_clip_start)
+            if advertisement is not None:
+                ad_end = search_string([linelist[num + 1]], string_clip_end)
+                if ad_end is not None and advertisement[6] == ad_end[6]:
+                    ad_tuple = (
+                        advertisement[0],
+                        advertisement[1],
+                        advertisement[5],
+                        ad_end[1],
+                    )
                     skip_num = num + 1
                 else:
-                    ad_tuple = (ad[0], ad[1], ad[5], False)
+                    ad_tuple = (
+                        advertisement[0],
+                        advertisement[1],
+                        advertisement[5],
+                        False,
+                    )
 
                 formatted_row = format_row(ad_tuple)
                 if formatted_row is not None:
@@ -291,14 +312,14 @@ def main(settings):
                     xlsx_row += 1
 
     # xlsx formatting
-    ws.set_column(0, 0, 40)
-    ws.set_column(1, 3, 13)
+    wsheet.set_column(0, 0, 40)
+    wsheet.set_column(1, 3, 13)
 
     full_log.close()
     os.remove(file_log)
-    wb.close()
-    print(f'Строк записано: {xlsx_row}')
-    print('Выполнено за %.2f сек.' % (time.time() - start_time))
+    wbook.close()
+    print(f'Lines written: {xlsx_row}')
+    print(f'Completed in {(time.time() - start_time):.2f} sec')
 
 
 def scheduled_log():
@@ -313,7 +334,7 @@ def scheduled_log():
                               ['*' + now_date_str + '*', '*' + yesterday_date_str + '*']])
 
     logs_list = []
-    for dirpath, dirs, files in os.walk(logs_path):
+    for _, _, files in os.walk(logs_path):
         files = [f for f in files if re.match(files_pattern, f)]
         for file_name in sorted(files):
             logs_list.append(file_name)
@@ -339,11 +360,11 @@ def gui_interface():
     schedule_logs, schedule_smtp, schedule_email = config_get('LOGS'), config_get('SMTP'), config_get('EMAIL')
     schedule_smtp['pass'] = '********' if schedule_smtp['pass'] else ''
 
-    version_text = f'{version} - Пробный период до {exp_date}' if trial else version
+    version_text = f'{VERSION} - Пробный период до {exp_date}' if trial else VERSION
     version_text_color = '#6a0000' if trial else '#ffffff'
 
     trial_expired_layout = [
-        [sg.Text(f'{version}\nПробный период использования закончился {exp_date}',
+        [sg.Text(f'{VERSION}\nПробный период использования закончился {exp_date}',
                  text_color=version_text_color, justification='center')],
         [sg.Button('Закрыть', key='Exit', size=(10, 1))]]
 
@@ -441,7 +462,7 @@ def gui_interface():
 
     logo_icon = os.path.dirname(os.path.realpath(__file__)) + '/logo.ico'
 
-    if trial_expired:
+    if TRIAL_EXPIRED:
         window = sg.Window('PyLogParser', icon=logo_icon,
                            element_justification='c').Layout(trial_expired_layout)
     else:
@@ -467,7 +488,7 @@ def gui_interface():
     window.close()
 
 
-if not trial_expired and sendmail:
+if not TRIAL_EXPIRED and sendmail:
     debug_log('sendmail')
     scheduled_log()
 
