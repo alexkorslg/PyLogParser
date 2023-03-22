@@ -70,8 +70,10 @@ def config_get(section):
 
 
 def password_crypt(mode, password):
-    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=os.urandom(0), iterations=1)
-    key = base64.urlsafe_b64encode(kdf.derive(b'J$?{Mf[xKzK`*JV,&_(#~{)x7jMQ>Y'))
+    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32,
+                     salt=os.urandom(0), iterations=1)
+    key = base64.urlsafe_b64encode(
+        kdf.derive(b'J$?{Mf[xKzK`*JV,&_(#~{)x7jMQ>Y'))
     fernet_key = Fernet(key)
     token = fernet_key.encrypt(password)
     if mode == 'encrypt':
@@ -88,7 +90,8 @@ def config_set(settings):
     elif settings.get('pass') == '':
         email_pass = ''
     else:
-        email_pass = password_crypt('encrypt', bytes(settings.get('pass'), encoding='utf-8')).decode('utf-8')
+        email_pass = password_crypt('encrypt', bytes(
+            settings.get('pass'), encoding='utf-8')).decode('utf-8')
 
     config['LOGS'] = {
         'path': settings.get('schedule_logs_path'),
@@ -146,7 +149,10 @@ def main(settings):
     if worksheet_name == '':
         worksheet_name = 'logs'
 
-    worksheet_header = [settings.get('col1'), settings.get('col2'), settings.get('col3'), settings.get('col4')]
+    worksheet_header = [
+        settings.get('col1'), settings.get('col2'),
+        settings.get('col3'), settings.get('col4'),
+    ]
 
     files_month = datetime.strptime(settings.get('month'), '%Y %B')
     logs_date = files_month.strftime('%Y-%m')
@@ -260,8 +266,10 @@ def main(settings):
     try:
         len(ad_lines_list)
     except TypeError:
-        print(f"{now.strftime('%H:%M:%S')} - Не найдены записи с заданными настройками,"
-              f"\nпроверьте пути к файлам, даты и ID роликов")
+        print(
+            now.strftime('%H:%M:%S') + " - Records with the specified settings"
+            " were not found,\ncheck the file paths, dates and video IDs"
+        )
         return
 
     ad_lines_list_len = len(ad_lines_list)
@@ -271,7 +279,8 @@ def main(settings):
             ad_start_end_pairs.append((ad_lines_list[i], ad_lines_list[i + 1]))
     else:
         full_log.close()
-        print(f"{now.strftime('%H:%M:%S')} - ID рекламных отбивок указаны неправильно!")
+        print(now.strftime('%H:%M:%S') +
+              " - Advertising spacers IDs are incorrect!")
         print(f'Количество рекламных блоков: {ad_lines_list_len / 2}')
         return
 
@@ -325,13 +334,17 @@ def main(settings):
 def scheduled_log():
     config_logs, config_email = config_get('LOGS'), config_get('EMAIL')
     logs_path = config_logs['path']
-    log_name = config_email['log_name'].replace('{date_yesterday}',
-                                                (dt.date.today() - dt.timedelta(1)).strftime('%d.%m.%Y'))
+    log_name = config_email['log_name'].replace(
+        '{date_yesterday}',
+        (dt.date.today() - dt.timedelta(1)).strftime('%d.%m.%Y')
+    )
     now_date_str = dt.date.today().strftime('%Y-%m-%d')
-    yesterday_date_str = (dt.date.today() - dt.timedelta(1)).strftime('%Y-%m-%d')
+    yesterday_date_str = (
+        dt.date.today() - dt.timedelta(1)).strftime('%Y-%m-%d')
 
-    files_pattern = r'|'.join([fnmatch.translate(x) for x in
-                              ['*' + now_date_str + '*', '*' + yesterday_date_str + '*']])
+    files_pattern = r'|'.join(
+        [fnmatch.translate(x) for x in
+         ['*' + now_date_str + '*', '*' + yesterday_date_str + '*']])
 
     logs_list = []
     for _, _, files in os.walk(logs_path):
@@ -343,13 +356,16 @@ def scheduled_log():
         os.remove(log_name)
     schedule_file_log = codecs.open(log_name, 'a', 'utf_8_sig')
 
-    start_datetime = datetime.strptime(f"{yesterday_date_str} {config_logs['start']}:00", '%Y-%m-%d %H:%M:%S')
-    end_datetime = datetime.strptime(f"{now_date_str} {config_logs['end']}:00", '%Y-%m-%d %H:%M:%S')
+    start_datetime = datetime.strptime(
+        f"{yesterday_date_str} {config_logs['start']}:00", '%Y-%m-%d %H:%M:%S')
+    end_datetime = datetime.strptime(
+        f"{now_date_str} {config_logs['end']}:00", '%Y-%m-%d %H:%M:%S')
 
     for filename in sorted(logs_list):
         with codecs.open(logs_path + '/' + filename, 'rb', 'utf_8_sig') as log:
             for line in log:
-                line_datetime = datetime.strptime('\t'.join(line.split('\t')[:3]), '\t%Y-%m-%d\t%H:%M:%S')
+                line_datetime = datetime.strptime(
+                    '\t'.join(line.split('\t')[:3]), '\t%Y-%m-%d\t%H:%M:%S')
                 if start_datetime < line_datetime < end_datetime:
                     schedule_file_log.write(line)
 
@@ -357,30 +373,42 @@ def scheduled_log():
 
 
 def gui_interface():
-    schedule_logs, schedule_smtp, schedule_email = config_get('LOGS'), config_get('SMTP'), config_get('EMAIL')
+    schedule_logs = config_get('LOGS')
+    schedule_smtp = config_get('SMTP')
+    schedule_email = config_get('EMAIL')
     schedule_smtp['pass'] = '********' if schedule_smtp['pass'] else ''
 
-    version_text = f'{VERSION} - Пробный период до {exp_date}' if trial else VERSION
+    version_text = f'{VERSION} - Trial expires {exp_date}' if trial else VERSION
     version_text_color = '#6a0000' if trial else '#ffffff'
 
     trial_expired_layout = [
-        [sg.Text(f'{VERSION}\nПробный период использования закончился {exp_date}',
+        [sg.Text(f'{VERSION}\nTrial period expired {exp_date}',
                  text_color=version_text_color, justification='center')],
         [sg.Button('Закрыть', key='Exit', size=(10, 1))]]
 
     main_layout = [
         [sg.Text('Папка c логами', size=(13, 1)),
-         sg.Input(readonly=True, size=(36, 1), key='logs_path', enable_events=True),
+         sg.Input(readonly=True, size=(36, 1),
+                  key='logs_path', enable_events=True),
          sg.FolderBrowse()],
         [sg.Text('Папка для отчёта', size=(13, 1)),
          sg.Input(readonly=True, size=(36, 1), key='xlsx_path'),
          sg.FolderBrowse()],
         [sg.Text('Сформировать за', size=(13, 1)),
-         sg.InputText(default_text=calc_month('%Y %B'), readonly=True, justification='right', size=(16, 1),
+         sg.InputText(default_text=calc_month('%Y %B'),
+                      readonly=True,
+                      justification='right',
+                      size=(16, 1),
                       key='month'),
-         sg.CalendarButton('Календарь', format='%Y %B', no_titlebar=False, title='Календарь')],
+         sg.CalendarButton('Календарь',
+                           format='%Y %B',
+                           no_titlebar=False,
+                           title='Календарь')],
         [sg.Text('Имя файла', size=(13, 1)),
-         sg.InputText(default_text=calc_month('%Y-%m') + '_logs', justification='right', size=(16, 1), key='file_xlsx'),
+         sg.InputText(default_text=calc_month('%Y-%m') + '_logs',
+                      justification='right',
+                      size=(16, 1),
+                      key='file_xlsx'),
          sg.Text('.xslx', justification='left', size=(4, 1)),
          sg.Text('Имя листа', justification='right', size=(9, 1)),
          sg.InputText(default_text='1', size=(8, 1), key='ws_name')],
@@ -392,12 +420,24 @@ def gui_interface():
         [sg.Text('_' * 63)],
         [sg.Text('Настройки:')],
         [sg.Text('Cмещение времени'),
-         sg.Combo(['+', '-'], default_value='+', readonly=True, size=(2, 1), key='offset_sign'),
-         sg.Spin([i for i in range(0, 13)], initial_value=2, readonly=True, size=(3, 1), key='time_offset')],
+         sg.Combo(['+', '-'],
+                  default_value='+',
+                  readonly=True,
+                  size=(2, 1),
+                  key='offset_sign'),
+         sg.Spin([i for i in range(0, 13)],
+                 initial_value=2,
+                 readonly=True,
+                 size=(3, 1),
+                 key='time_offset')],
         [sg.Text('Начало рекламного блока', size=(26, 1)),
          sg.Text('Окончание рекламного блока', size=(22, 1))],
-        [sg.InputText(default_text='ID_REC_DTMF_In', size=(30, 1), key='ad_start'),
-         sg.InputText(default_text='ID_REC_DTMF_Out', size=(30, 1), key='ad_end')],
+        [sg.InputText(default_text='ID_REC_DTMF_In',
+                      size=(30, 1),
+                      key='ad_start'),
+         sg.InputText(default_text='ID_REC_DTMF_Out',
+                      size=(30, 1),
+                      key='ad_end')],
         [sg.Text('Начало ролика', size=(26, 1)),
          sg.Text('Окончание ролика', size=(22, 1))],
         [sg.Input(default_text='CLIP START', size=(30, 1), key='start'),
@@ -411,39 +451,70 @@ def gui_interface():
 
     scheduler = [
         [sg.Text('Ключ запуска', size=(15, 1)),
-         sg.Input(default_text=args.get('sendmail'), key=args.get('sendmail'), disabled=True, size=(43, 1))],
+         sg.Input(default_text=args.get('sendmail'),
+                  key=args.get('sendmail'),
+                  disabled=True,
+                  size=(43, 1))],
         [sg.Text('Папка c логами', size=(15, 1)),
-         sg.Input(default_text=schedule_logs['path'], readonly=True, size=(34, 1),
-                  key='schedule_logs_path', enable_events=True),
+         sg.Input(default_text=schedule_logs['path'],
+                  readonly=True,
+                  size=(34, 1),
+                  key='schedule_logs_path',
+                  enable_events=True),
          sg.FolderBrowse()],
         [sg.Text('Формировать отчёт', size=(15, 1)),
-         sg.Combo(['вчера', ], default_value='вчера', readonly=True, size=(8, 1)),
-         sg.Combo(['05:59', '06:00'], default_value=schedule_logs['start'], readonly=True, size=(5, 1),
+         sg.Combo(['вчера', ], default_value='вчера',
+                  readonly=True, size=(8, 1)),
+         sg.Combo(['05:59', '06:00'],
+                  default_value=schedule_logs['start'],
+                  readonly=True,
+                  size=(5, 1),
                   key='schedule_log_start'),
          sg.Text('– ', size=(1, 1)),
-         sg.Combo(['сегодня', ], default_value='сегодня', readonly=True, size=(8, 1)),
-         sg.Combo(['06:00', '06:01'], default_value=schedule_logs['end'], readonly=True, size=(5, 1),
+         sg.Combo(['сегодня', ],
+                  default_value='сегодня',
+                  readonly=True,
+                  size=(8, 1)),
+         sg.Combo(['06:00', '06:01'],
+                  default_value=schedule_logs['end'],
+                  readonly=True,
+                  size=(5, 1),
                   key='schedule_log_end')],
         [sg.Text('_' * 63)],
         [sg.Text('Настройки почты:')],
         [sg.Text('SMTP сервер', size=(15, 1)),
-         sg.Input(default_text=schedule_smtp['host'], key='host', size=(43, 1))],
+         sg.Input(default_text=schedule_smtp['host'],
+                  key='host',
+                  size=(43, 1))],
         [sg.Text('SMTP порт', size=(15, 1)),
-         sg.Input(default_text=schedule_smtp['port'], key='port', size=(43, 1))],
+         sg.Input(default_text=schedule_smtp['port'],
+                  key='port',
+                  size=(43, 1))],
         [sg.Text('EMAIL отправителя', size=(15, 1)),
-         sg.Input(default_text=schedule_smtp['mail'], key='mail', size=(43, 1))],
+         sg.Input(default_text=schedule_smtp['mail'],
+                  key='mail',
+                  size=(43, 1))],
         [sg.Text('Пароль отправителя', size=(15, 1)),
-         sg.Input(default_text=schedule_smtp['pass'], key='pass', size=(43, 1))],
+         sg.Input(default_text=schedule_smtp['pass'],
+                  key='pass', size=(43, 1))],
         [sg.Text('_' * 63)],
         [sg.Text('Настройки письма:')],
         [sg.Text('Получатели', size=(15, 1)),
-         sg.Input(default_text=schedule_email['recipients'], key='recipients', size=(43, 1))],
+         sg.Input(default_text=schedule_email['recipients'],
+                  key='recipients',
+                  size=(43, 1))],
         [sg.Text('Заголовок', size=(15, 1)),
-         sg.Input(default_text=schedule_email['subject_title'], key='subject_title', size=(43, 1))],
+         sg.Input(default_text=schedule_email['subject_title'],
+                  key='subject_title',
+                  size=(43, 1))],
         [sg.Text('Текст письма', size=(15, 1)),
-         sg.Input(default_text=schedule_email['body'], key='body', size=(43, 1))],
+         sg.Input(default_text=schedule_email['body'],
+                  key='body',
+                  size=(43, 1))],
         [sg.Text('Имя файла', size=(15, 1)),
-         sg.InputText(default_text=schedule_email['log_name'], key='schedule_log_name', size=(43, 1))],
+         sg.InputText(default_text=schedule_email['log_name'],
+                      key='schedule_log_name',
+                      size=(43, 1))],
         [sg.Text(' ' * 63, size=(1, 2))],
         [sg.Text(version_text, size=(28, 1), text_color=version_text_color),
          sg.Text('', key='success_text', size=(7, 1), justification='right'),
@@ -453,7 +524,8 @@ def gui_interface():
 
     tabs = [
         [sg.TabGroup(
-            [[sg.Tab('Парсер логов в xlsx', main_layout), sg.Tab('Настройки для рассылки txt лога', scheduler)]],
+            [[sg.Tab('Парсер логов в xlsx', main_layout),
+              sg.Tab('Настройки для рассылки txt лога', scheduler)]],
             tab_location='centertop',
             title_color='Black',
             tab_background_color='Gray',
@@ -463,8 +535,9 @@ def gui_interface():
     logo_icon = os.path.dirname(os.path.realpath(__file__)) + '/logo.ico'
 
     if TRIAL_EXPIRED:
-        window = sg.Window('PyLogParser', icon=logo_icon,
-                           element_justification='c').Layout(trial_expired_layout)
+        window = sg.Window(
+            'PyLogParser', icon=logo_icon, element_justification='c'
+        ).Layout(trial_expired_layout)
     else:
         window = sg.Window('PyLogParser', icon=logo_icon).Layout(tabs)
 
@@ -495,9 +568,11 @@ if not TRIAL_EXPIRED and sendmail:
     smtp, email = config_get('SMTP'), config_get('EMAIL')
 
     date_yesterday = dt.date.today() - dt.timedelta(days=1)
-    email_title = email['subject_title'].replace('{date_yesterday}', date_yesterday.strftime('%d.%m.%Y'))
+    email_title = email['subject_title'].replace(
+        '{date_yesterday}', date_yesterday.strftime('%d.%m.%Y'))
     # logfile = email['log_name']
-    logfile = email['log_name'].replace('{date_yesterday}', date_yesterday.strftime('%d.%m.%Y'))
+    logfile = email['log_name'].replace(
+        '{date_yesterday}', date_yesterday.strftime('%d.%m.%Y'))
 
     mail = MIMEMultipart()
     mail['From'] = smtp['mail']
@@ -509,15 +584,23 @@ if not TRIAL_EXPIRED and sendmail:
     attachment.set_payload(fp.read())
     fp.close()
     encoders.encode_base64(attachment)
-    attachment.add_header('Content-Disposition', 'attachment', filename=logfile)
+    attachment.add_header(
+        'Content-Disposition', 'attachment', filename=logfile
+    )
     mail.attach(attachment)
 
     debug_log('attach')
 
     session = smtplib.SMTP(smtp['host'], smtp['port'])
     session.starttls()
-    session.login(smtp['mail'], password_crypt('decrypt', bytes(smtp['pass'], encoding='utf-8')).decode('utf-8'))
-    session.sendmail(smtp['mail'], email['recipients'].split(','), mail.as_string())
+    session.login(
+        smtp['mail'],
+        password_crypt('decrypt',
+                       bytes(smtp['pass'], encoding='utf-8')).decode('utf-8')
+    )
+    session.sendmail(
+        smtp['mail'], email['recipients'].split(','), mail.as_string()
+    )
     session.quit()
 
     # if os.path.exists(logfile):
